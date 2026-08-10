@@ -1,0 +1,17 @@
+# Claude Code local settings (machine-specific, must not be committed —
+# autoMemoryDirectory is ignored by design if it appears in a checked-in file)
+.claude/settings.local.json
+
+# colcon
+build/
+install/
+log/
+
+# Python
+__pycache__/
+*.pyc
+
+# flight logs
+*.ulg
+*.csv
+rosbags/
