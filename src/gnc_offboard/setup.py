@@ -15,7 +15,7 @@ setup(
     zip_safe=True,
     maintainer='maxho',
     maintainer_email='mhowel30@vols.utk.edu',
-    description='TODO: Package description',
+    description='Package for custom control modules',
     license='MIT',
     extras_require={
         'test': [
@@ -23,7 +23,8 @@ setup(
         ],
     },
     entry_points={
-        'console_scripts': [
-        ],
+    'console_scripts': [
+        'local_position_echo = gnc_offboard.local_position_echo:main',
+    ],
     },
 )
