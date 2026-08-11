@@ -7,9 +7,13 @@ build/
 install/
 log/
 
+# fetched via `vcs import src < deps.repos` — pinned, never committed
+src/px4_msgs/
+
 # Python
 __pycache__/
 *.pyc
+*.egg-info/
 
 # flight logs
 *.ulg
