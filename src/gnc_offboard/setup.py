@@ -24,7 +24,7 @@ setup(
     },
     entry_points={
     'console_scripts': [
-        'local_position_echo = gnc_offboard.local_position_echo:main',
+        'square_node = gnc_offboard.square_node:main',
     ],
     },
 )

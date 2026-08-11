@@ -18,6 +18,10 @@ __pycache__/
 # debug
 debug/
 
+# local
+.vscode/
+.claude/
+
 # flight logs
 *.ulg
 *.csv

@@ -17,6 +17,9 @@ RECORD_TOPICS = [
     '/fmu/out/vehicle_command_ack_v1',
     '/fmu/out/failsafe_flags',
     '/fmu/out/timesync_status',
+    'fmu/in/offboard_control_mode',
+    '/fmu/in/trajectory_setpoint',
+    '/fmu/in/vehicle_command',
 ]
 
 def _archive_ulog(context, *args, **kwargs):
@@ -77,7 +80,9 @@ def generate_launch_description():
 
     px4_proc = ExecuteProcess(
         cmd=['make', '-C', px4_dir, 'px4_sitl', model],
-        additional_env={'HEADLESS': headless},
+        additional_env={'HEADLESS': headless,
+                        'PX4_PARAM_CBRK_SUPPLY_CHK': '894281',
+                        'PX4_PARAM_NAV_DLL_ACT': '0',},
         output='screen')
 
 
