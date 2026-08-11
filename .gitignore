@@ -15,7 +15,14 @@ __pycache__/
 *.pyc
 *.egg-info/
 
+# debug
+debug/
+
 # flight logs
 *.ulg
 *.csv
 rosbags/
+flight_logs/
+
+# local guidelines (not published with the repo)
+guidelines/

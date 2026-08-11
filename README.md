@@ -67,7 +67,7 @@ port 8888, matching PX4's client default.
 Used by the log analysis scripts in `tools/`, outside the ROS build:
 
 ```bash
-pip install --user pyulog matplotlib numpy pandas
+pip install --user pyulog matplotlib numpy pandas niceplots
 ```
 
 ## Build
