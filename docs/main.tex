@@ -1,0 +1,131 @@
+\documentclass[11pt]{article}
+
+% ---------------------------------------------------------------- packages
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath, amssymb, mathtools}
+\usepackage{bm}                 % bold symbols for vectors/matrices
+\usepackage{siunitx}            % \qty{9.8}{\meter\per\second\squared}
+\usepackage{booktabs}           % \toprule \midrule \bottomrule
+\usepackage{graphicx}
+\usepackage{microtype}
+\usepackage[hidelinks]{hyperref}
+\usepackage{cleveref}
+
+\sisetup{per-mode = symbol}
+
+% ---------------------------------------------------------------- macros
+% Vectors and matrices
+\newcommand{\vb}[1]{\bm{#1}}                       % vector:  \vb{v}
+\newcommand{\mat}[1]{\bm{#1}}                      % matrix:  \mat{R}
+\newcommand{\T}{^{\mathsf{T}}}                     % transpose
+\newcommand{\skewm}[1]{\left[#1\right]_{\times}}   % skew-symmetric matrix
+
+% Frames -- superscript/subscript labels
+\newcommand{\fI}{\mathcal{I}}                      % inertial (NED)
+\newcommand{\fB}{\mathcal{B}}                      % body (FRD)
+\newcommand{\inI}[1]{{}^{\fI}\!#1}                 % quantity in inertial frame
+\newcommand{\inB}[1]{{}^{\fB}\!#1}                 % quantity in body frame
+
+% Common quantities
+\newcommand{\Rbi}{\mat{R}}                         % body -> inertial rotation
+\newcommand{\quat}{\vb{q}}
+\newcommand{\qmul}{\otimes}                        % quaternion product
+\newcommand{\eIII}{\vb{e}_3}                       % (0,0,1)
+
+\newcommand{\ra}[1]{\renewcommand{\arraystretch}{#1}}
+\newcommand{\degree}{\ensuremath{^\circ\,}}
+\newcommand{\overbar}[1]{\mkern 1.5mu\overline{\mkern-1.5mu#1\mkern-1.5mu}\mkern 1.5mu}
+\newcommand{\f}[2]{\frac{#1}{#2}}
+\newcommand{\mb}[1]{\mathbf{#1}}
+\newcommand{\tr}[1]{\mathrm{Tr}\left({#1}\right)}
+\newcommand{\mbg}[1]{\boldsymbol{\mathbf{#1}}}
+\DeclarePairedDelimiter{\ceil}{\lceil}{\rceil}
+\DeclareMathAlphabet\mathbfcal{OMS}{cmsy}{b}{n}
+\renewcommand{\d}{\mathop{}\!\mathrm{d}} % total derivative
+\newcommand{\p}{\partial}
+\renewcommand{\Re}{\mathrm{Re}}  % Real part (upright)
+\renewcommand{\Im}{\mathrm{Im}}  % Imaginary part (upright)
+
+\title{Quadrotor GNC Project}
+\author{Max Howell}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+
+Intro placeholder
+
+
+\section{Model and Derivation of EOM}
+
+In this project, we consider the gz\_x500 quadcopter model used in Gazebo as shown in Figure 1. % TODO: add quadcopter figure and FBD next to it.
+As can be seen, this quadcopter is in an X-configuration with motors 0-3 with the NED inertial frame $\mathcal{N}$ and the FRD body frame $\mathcal{B}$.
+Motors 0 and 1 rotate counter clock-wise (CCW) and motors 2 and 3 rotate clock-wise (CW).
+The geometry of the quadcopter is defined by radial vectors $\mb{r}_i$ which give the vector from the center of mass to each motor $i$ and the inertia is defined by the inertia matrix $\mb{J} = \mathrm{diag}(I_{xx}, I_{yy}, I_{zz})$.
+
+The FBD shows the forces acting on the quadcopter: the thrust produced by each motor $\mb{T}_i = [0, 0, -T_i]$, the gravitational force $m\mb{g}$, where $m$ is the mass of the quadrotor and $\mb{g} = [0, 0, g]$ with $g$ the gravitational acceleration, and the rotor drag force $\mb{H}_i = -k_d |\omega_i| \mb{v}_{i,\perp}$, with $\omega_i$ being the rotational rate of the rotor and $\mb{v}_{i,\perp}$ being the perpendicular velocity.
+% TODO: define $k_d$ (rotor drag coefficient) and give the expression for
+% $\mb{v}_{i,\perp}$ -- the component of the rotor velocity perpendicular to the
+% rotor axis, i.e. projected into the rotor plane.
+There is also a reaction moment $\mb{M}_i$ produced by each spinning rotor as well as the moments produced by the forces.
+% TODO: give the expression for $\mb{M}_i$ (reaction moment about $z_b$, with
+% sign set by the rotor spin direction).
+
+We derive the equations of motion using the Newton--Euler method and quaternions to define the rotation of the quadcopter.
+The inertial position of the quadcopter is given by $\mb{p} = [p_x, p_y, p_z]^\top$ and the inertial velocity ${\mb{v}} = \dot{\mb{p}}$.
+The quaternion state of the quadcopter defining the rotation is given by $\mb{q} = [q_0, q_1, q_2, q_3]^\top$, with $q_0$ collecting $\mathrm{cos}(\theta/2)$ and $q_{1:3}$ collecting $\mb{n}\mathrm{sin}(\theta/2)$, with $\theta$ being the angle of rotation and $\mb{n}$ the axis of rotation.
+The angular rate of the quadcopter is given by $\boldsymbol{\omega} = [\omega_x, \omega_y, \omega_z]^\top$, with $\omega_x, \omega_y, \omega_z$ being the roll, pitch, and yaw rates in $\mathcal{B}$, respectively.
+Collecting the full state and defining it as $\mb{x}$ gives
+\begin{equation}
+\mb{x} \coloneqq \begin{bmatrix}
+\mb{p} \\ \mb{v} \\ \mb{q} \\ \boldsymbol{\omega}
+\end{bmatrix}
+=
+\begin{bmatrix}
+p_x \\ p_y \\ p_z \\ v_x \\ v_y \\ v_z \\ q_0 \\ q_1 \\ q_2 \\ q_3 \\ \omega_x \\ \omega_y \\ \omega_z
+\end{bmatrix}
+,
+\end{equation}
+which defines the 13-state model.
+
+Summing the translational dynamics by $\sum{\mb{F}} = m\dot{\mb{v}}$ gives
+\begin{equation}
+\mb{R}(\sum{\mb{T_i}} + \sum{\mb{H_i}}) + m\mb{g} = m\dot{\mb{v}},
+\end{equation}
+where $\mb{R} \coloneqq \mb{R}(\mb{q})$ is the $3\times 3$ rotational matrix satisfying $\mb{v} = \mb{R}\mb{v}_b$, mapping from the body frame to the inertial frame.
+
+Similarly, the rotational dynamics via $\sum{\boldsymbol{\tau}} = \mb{J}\dot{\boldsymbol{\omega}} + (\boldsymbol{\omega} \times \mb{J}\boldsymbol{\omega})$ gives
+\begin{equation}
+\sum(\mb{r}_i \times \mb{T}_i) + \sum{(\mb{r}_i \times \mb{H}_i)} + \sum{\mb{M}_i} = \mb{J}\dot{\boldsymbol{\omega}} + (\boldsymbol{\omega} \times \mb{J}\boldsymbol{\omega}),
+\end{equation}
+which can be re-arranged to solve for $\dot{\boldsymbol{\omega}}$.
+The attitude kinematics comes from the quaternion derivative equation $\dot{\mb{q}} = 1/2 \mb{q} \otimes \begin{bmatrix}0 & \boldsymbol{\omega} \end{bmatrix}$.
+
+Defining the control input as the thrust magnitude produced by each motor $\mb{u} = [T_0, T_1, T_2, T_3]^\top$, we wish to derive an allocation matrix $\mb{B}$ mapping from $\mb{u}$ to the total thrust as well as the roll, pitch, and yaw torques on the body.
+The total thrust is simply a summation of the individual thrust from each motor $T_{\mathrm{tot}} = \sum{T_i}$.
+The roll $\tau_x$ and pitch $\tau_y$ torques acting on the quadcopter body come from the cross product $(\mb{r}_i \times \mb{T}_i) = \begin{bmatrix} -r_{i,y} T_i & r_{i,x} T_i & 0 \end{bmatrix}$, where the torque produced by the thrust in the yaw direction is zero since it is perpendicular to the axis of thrust.
+The yaw torque $\tau_z$ comes from the reaction moment produced by each motor $\mb{M}_i = \begin{bmatrix} 0 & 0 & \sigma_i k_M T_i \end{bmatrix}$, where $\sigma_{0,1} = 1$ for the CCW spinning rotors and $\sigma_{2,3} = -1$ for the CW spinning rotors, and $k_M$ is the moment constant for the rotor.
+Collecting all the terms into a single mapping gives the allocation matrix
+\begin{equation}
+\mb{B} = 
+\begin{bmatrix}
+1 & 1 & 1 & 1\\
+-r_{0,y}&  -r_{1,y}&  -r_{2,y} & -r_{3,y}\\
+r_{0,x}&  r_{1,x}&  r_{2,x} & r_{3,x}\\
+\sigma_0 k_M & \sigma_1 k_M & \sigma_2 k_M & \sigma_3 k_M
+\end{bmatrix},
+\end{equation}
+which gives the mapping $\begin{bmatrix}T_{\mathrm{tot}} & \tau_x & \tau_y & \tau_z \end{bmatrix}^\top = \mb{B}\mb{u}$.
+
+Re-writing the translational and rotational equations as a function of $\mb{B}$ and $\mb{u}$ gives
+\begin{equation}
+\begin{aligned}
+m\dot{\mb{v}} &= m\mb{g} + \mb{R}(\sum{H}_i + \begin{bmatrix} 0 & 0 & -T_{\mathrm{tot}}\end{bmatrix}^\top) \\
+\mb{J}\dot{\boldsymbol{\omega}} + (\boldsymbol{\omega} \times \mb{J}\boldsymbol{\omega}) &= \begin{bmatrix}\tau_x & \tau_y & \tau_z \end{bmatrix}^\top + \sum{(\mb{r}_i \times \mb{H}_i)}.
+\end{aligned}
+\end{equation}
+These two equations, along with the quaternion derivative $\dot{\mb{q}} = 1/2 \mb{q} \otimes \begin{bmatrix}0 & \boldsymbol{\omega} \end{bmatrix}$ and the relation $\dot{\mb{p}} = \mb{v}$ allows us to form a closed system of equations of the form $\dot{\mb{x}} = f(\mb{x},\mb{u})$.
+
+\end{document}

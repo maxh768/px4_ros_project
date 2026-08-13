@@ -30,3 +30,14 @@ flight_logs/
 
 # local guidelines (not published with the repo)
 guidelines/
+article_utils/
+
+# LaTeX build artifacts
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
+*.toc
+docs/*.pdf
