@@ -17,6 +17,52 @@ class Setpoint(NamedTuple):
     position: Vec3
     yaw: float
 
+def hold(x, y, z):
+    """Constant position."""
+    return lambda t: (x, y, z)
+
+def const(value):
+    """Constant scalar, for yaw."""
+    return lambda t: value
+
+def steps(values, dwell):
+    """Piecewise-constant: values[i] for `dwell` seconds each, then hold the last."""
+    def fn(t):
+        return values[min(int(t // dwell), len(values) - 1)]
+    return fn
+
+def position_steps(base, axis, offsets, dwell):
+    """Step one axis of `base` through `offsets`.  axis: 0=N, 1=E, 2=D."""
+    def fn(t):
+        p = list(base)
+        p[axis] += offsets[min(int(t // dwell), len(offsets) - 1)]
+        return tuple(p)
+    return fn
+
+def figure_eight(amplitude, altitude, period, lead_in=5.0):
+    w = 2*math.pi/period
+    def fn(t):
+        s = max(0.0, t - lead_in)
+        return (amplitude*math.sin(w*s),
+                amplitude*math.sin(w*s)*math.cos(w*s),
+                -altitude)
+    fn.phase = lambda t: max(0.0, t - lead_in)     # expose the parameter
+    return fn
+
+
+def tangent_yaw(position_fn, dt=1e-3, t_start=0.0):
+    """Yaw pointing along the path tangent.
+    """
+    def fn(t):
+        s = max(t, t_start)
+        x0, y0, _ = position_fn(s)
+        x1, y1, _ = position_fn(s + dt)
+        if x1 == x0 and y1 == y0:
+            return 0.0
+        return math.atan2(y1 - y0, x1 - x0)
+    return fn
+
+
 
 def square_waypoints(side: float = 5.0, altitude: float = 5.0) -> list[Vec3]:
     """
@@ -29,6 +75,42 @@ def square_waypoints(side: float = 5.0, altitude: float = 5.0) -> list[Vec3]:
                  (0., 0., -altitude)]
     
     return waypoints
+
+class ManeuverGuidance:
+    """
+    Performs maneuver from given position fn
+    """
+
+    def __init__(self, position_fn, yaw_fn, duration):
+        """
+        position_fn and yaw_fn take arg time and return position and yaw tuples
+        """
+        self._position_fn = position_fn
+        self._yaw_fn = yaw_fn
+        self._duration = duration
+        self._t = 0.0
+
+    def update(self, t, filler=None) -> Setpoint:
+        self._t = float(t)
+        pos = self._position_fn(t)
+        return Setpoint(tuple(float(v) for v in pos), float(self._yaw_fn(self._t)))
+
+    @property
+    def target(self) -> Vec3:
+        pos = self._position_fn(self._t)
+        return tuple(float(v) for v in pos)
+
+    @property
+    def finished(self) -> bool:
+        return self._duration is not None and self._t >= self._duration
+
+    def reset(self) -> None:
+        self._t = 0.0
+
+    def distance_to_target(self, position) -> float:
+        """Tracking error, for logging."""
+        return math.dist(position, self.target)
+        
 
 
 class WaypointGuidance:
@@ -113,4 +195,28 @@ class WaypointGuidance:
         """
 
         self._index = 0
+
+def _figure_eight():
+    lead = 5.0
+    pf = figure_eight(5.0, 5.0, 20.0, lead_in=lead)
+    return ManeuverGuidance(pf, tangent_yaw(pf, t_start=lead), duration=50)
+
+
+
+MANEUVERS = {
+  'hover':     lambda: ManeuverGuidance(hold(0,0,-5), const(0.0), duration=60),
+  'yaw_steps': lambda: ManeuverGuidance(hold(0,0,-5),
+                          steps([0.0, math.pi/2, math.pi, 0.0], dwell=8), duration=40),
+  'step_y':    lambda: ManeuverGuidance(position_steps((0,0,-5), 1, [0,2,-2,0], 8),
+                          const(0.0), duration=40),
+  'step_x':    lambda: ManeuverGuidance(position_steps((0,0,-5), 0, [0,2,-2,0], 8),
+                          const(0.0), duration=40),
+  'step_z':    lambda: ManeuverGuidance(position_steps((0,0,-5), 2, [0,-2,2,0], 8),
+                          const(0.0), duration=40),
+    'figure_eight': _figure_eight,
+    'square': lambda: WaypointGuidance(square_waypoints())
+}
+
+
+
         

@@ -9,7 +9,7 @@ import rclpy
 from rclpy.node import Node
 
 from gnc_offboard.px4_interface import Px4Interface
-from gnc_offboard.guidance import WaypointGuidance, square_waypoints
+from gnc_offboard.guidance import ManeuverGuidance, WaypointGuidance, square_waypoints, MANEUVERS
 
 
 class State(Enum):
@@ -27,31 +27,32 @@ class State(Enum):
     FAULT = auto()              # PX4 dropped us; stop commanding, report
 
 
-class SquareNode(Node):
+class FlyManeuver(Node):
 
     def __init__(self):
         super().__init__('square_node')
 
         # Parameters
-        self.declare_parameter('side', 5.0)             # square edge, metres
-        self.declare_parameter('altitude', 5.0)         # height, positive up
-        self.declare_parameter('tolerance', 0.3)        # arrival radius, metres
         self.declare_parameter('rate_hz', 50.0)         # setpoint stream rate
         self.declare_parameter('warmup_s', 1.0)         # stream before requesting
         self.declare_parameter('command_period_s', 0.5) # retry interval
 
-        self._side = self.get_parameter('side').value
-        self._altitude = self.get_parameter('altitude').value
-        self._tolerance = self.get_parameter('tolerance').value
+        # maneuver to fly
+        self.declare_parameter('maneuver', 'figure_eight')
+
+        self._maneuver = self.get_parameter('maneuver').value
+        if self._maneuver not in MANEUVERS:
+            raise ValueError(f'unknown maneuver {self._maneuver!r}; choose from {sorted(MANEUVERS)}')
+        
         self._rate_hz = self.get_parameter('rate_hz').value
         self._warmup_s = self.get_parameter('warmup_s').value
         self._command_period_s = self.get_parameter('command_period_s').value
 
         self.interface = Px4Interface(self)  # interface to talk to Px4
         # guidance code
-        self._guidance = WaypointGuidance(
-            square_waypoints(self._side, self._altitude),
-            tolerance=self._tolerance)
+        self._guidance = MANEUVERS[self._maneuver]()
+
+        self.get_logger().info(f'maneuver: {self._maneuver}')
 
         self._state = State.STREAMING
         self._start_ns = self.get_clock().now().nanoseconds
@@ -61,8 +62,7 @@ class SquareNode(Node):
         self._timer = self.create_timer(1.0 / self._rate_hz, self._on_timer)
 
         self.get_logger().info(
-            f'square: {self._side} m at {self._altitude} m, '
-            f'tol {self._tolerance} m, {self._rate_hz} Hz')
+            f'{self._rate_hz} Hz')
 
     # ------------------------------------------------------------------ utils
 
@@ -153,14 +153,13 @@ class SquareNode(Node):
                 position = self.interface.position
                 if position is not None:
                     self.get_logger().info(
-                        f'leg {self._guidance.index}  '
                         f'{self._guidance.distance_to_target(position):.2f} m to go',
                         throttle_duration_sec=1.0)
 
 
 def main(args=None):
     rclpy.init(args=args)
-    node = SquareNode()
+    node = FlyManeuver()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:

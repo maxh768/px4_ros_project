@@ -1,5 +1,7 @@
 import sympy as sm
 from sympy.algebras.quaternion import Quaternion
+import numpy as np
+from sympy.utilities.lambdify import lambdify
 
 # --- parameters -----------------------------------------------------------
 m, g_use            = sm.symbols('m g_use', positive=True)
@@ -84,6 +86,9 @@ w_dot = J.inv() * (tau + tau_H - omega.cross(J*omega))
 
 f = sm.Matrix.vstack(p_dot, v_dot, q_dot, w_dot)
 assert f.shape == (13,1)
+
+params = [m, g_use, Ixx, Iyy, Izz, kT, kM, kd] + [s for i in range(4) for s in (rx[i], ry[i], rz[i], sg[i])]
+dynamics = lambdify((x, u, params), f, modules='numpy', cse=True)
 
 
 

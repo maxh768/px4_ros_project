@@ -6,7 +6,7 @@ from launch.substitutions import LaunchConfiguration, EnvironmentVariable
 import os
 from datetime import datetime
 from launch.conditions import IfCondition
-import glob, shutil, subprocess
+import glob, shutil, subprocess, re
 
 # Topics recorded on every flight.
 RECORD_TOPICS = [
@@ -17,30 +17,28 @@ RECORD_TOPICS = [
     '/fmu/out/vehicle_command_ack_v1',
     '/fmu/out/failsafe_flags',
     '/fmu/out/timesync_status',
-    'fmu/in/offboard_control_mode',
+    '/fmu/in/offboard_control_mode',
     '/fmu/in/trajectory_setpoint',
     '/fmu/in/vehicle_command',
 ]
 
 def _archive_ulog(context, *args, **kwargs):
-    """Copy the newest PX4 .ulg into log_dir.
-
-    Runs in-process rather than as an ExecuteProcess: launch refuses to start
-    new processes once shutdown has begun, and shutdown begins the moment
-    Ctrl-C reaches the process group.
-    """
     px4_dir = context.perform_substitution(LaunchConfiguration('px4_dir'))
     dest    = context.perform_substitution(LaunchConfiguration('log_dir'))
+    name    = context.perform_substitution(LaunchConfiguration('log_name'))
 
     logs = glob.glob(os.path.join(px4_dir, 'build/px4_sitl_default/rootfs/log/*/*.ulg'))
     if not logs:
         print('[archive_ulog] no .ulg found')
         return
 
-    src = max(logs, key=os.path.getmtime)
+    src  = max(logs, key=os.path.getmtime)
+    stem = os.path.splitext(
+        f'{os.path.basename(os.path.dirname(src))}_{os.path.basename(src)}')[0]
+    safe = re.sub(r'[^A-Za-z0-9_.-]', '_', name)
+    target = os.path.join(dest, f'{stem}_{safe}.ulg' if safe else f'{stem}.ulg')
+
     os.makedirs(dest, exist_ok=True)
-    target = os.path.join(
-        dest, f'{os.path.basename(os.path.dirname(src))}_{os.path.basename(src)}')
     if not os.path.exists(target):
         shutil.copy2(src, target)
 
@@ -49,6 +47,7 @@ def _archive_ulog(context, *args, **kwargs):
         os.remove(link)
     os.symlink(target, link)
     print(f'[archive_ulog] saved {target}')
+
 
 
 def _kill_gz(context, *args, **kwargs):
@@ -60,6 +59,8 @@ def generate_launch_description():
     headless = LaunchConfiguration('headless')
     px4_dir  = LaunchConfiguration('px4_dir')
     log_dir  = LaunchConfiguration('log_dir')
+    log_name = LaunchConfiguration('log_name')
+
 
 
     # for recording with ros bag
@@ -68,7 +69,7 @@ def generate_launch_description():
     stamp = datetime.now().strftime('%Y-%m-%d_%H_%M_%S')
 
     bag_proc = ExecuteProcess(
-        cmd=['ros2', 'bag', 'record', '-o', [bag_dir, '/', stamp]] + RECORD_TOPICS,
+        cmd=['ros2', 'bag', 'record', '-o', [bag_dir, '/', stamp, '_', log_name]] + RECORD_TOPICS,
         condition=IfCondition(LaunchConfiguration('record')),
         output='screen')
 
@@ -82,11 +83,13 @@ def generate_launch_description():
         cmd=['make', '-C', px4_dir, 'px4_sitl', model],
         additional_env={'HEADLESS': headless,
                         'PX4_PARAM_CBRK_SUPPLY_CHK': '894281',
-                        'PX4_PARAM_NAV_DLL_ACT': '0',},
+                        'PX4_PARAM_NAV_DLL_ACT': '0',
+                        'PX4_PARAM_SDLOG_PROFILE': '25'},
         output='screen')
 
 
     return LaunchDescription([
+        DeclareLaunchArgument('log_name', default_value='flight'),
         DeclareLaunchArgument('model',    default_value='gz_x500'),
         DeclareLaunchArgument('headless', default_value=''),
         DeclareLaunchArgument(

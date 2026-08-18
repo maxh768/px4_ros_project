@@ -24,7 +24,7 @@ setup(
     },
     entry_points={
     'console_scripts': [
-        'square_node = gnc_offboard.square_node:main',
+        'fly_maneuver = gnc_offboard.fly_maneuver:main',
     ],
     },
 )
